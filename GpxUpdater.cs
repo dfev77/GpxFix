@@ -6,32 +6,69 @@ namespace GpxFix
 {
     class GpxUpdater
     {
+        private const string NewFileSuffix = "_updated";
+        private const string GpxFileExtension = ".gpx";
+
         private const string DefaultNamespace = "http://www.topografix.com/GPX/1/1";
 
-        public void Process(string filePath)
+        private void ProcessOneFile(string filePath, DateTime date)
         {
-            if (!File.Exists(filePath))
-            {
-                Console.WriteLine("File '{0}' does not exist!", filePath);
-                return;
-            }
-
             Console.WriteLine("Updating '{0}'", filePath);
 
             XmlDocument doc = new XmlDocument();
             doc.Load(filePath);
 
-            AddDate(doc);
+            AddDate(doc, date);
             string newPath = GetOutputFileName(filePath);
 
             doc.Save(newPath);
 
             Console.WriteLine("New file written to '{0}'", newPath);
+
         }
 
-        private void AddDate(XmlDocument gpxDocument)
+        private void ProcessOneFile(string filePath)
         {
-            DateTime date = new DateTime(1900, 1, 1);
+            ProcessOneFile(filePath, DateTime.UtcNow);
+        }
+
+        private void ProcessFolder(string folderPath)
+        {
+            DateTime startDate = DateTime.UtcNow;
+            foreach(string filePath in Directory.GetFiles(folderPath, "*" + GpxFileExtension))
+            {
+                if (filePath.EndsWith(NewFileSuffix + GpxFileExtension))
+                {
+                    Console.WriteLine("Skip {0}, as is an already updated file", filePath);
+                    continue;
+                }
+
+                ProcessOneFile(filePath, startDate);
+                startDate = startDate.Subtract(TimeSpan.FromDays(1));
+            }
+        }
+
+        public void Process(string filePath)
+        {
+            if (Directory.Exists(filePath))
+            {
+                ProcessFolder(filePath);
+            }
+            else
+            if (File.Exists(filePath))
+            {
+                ProcessOneFile(filePath);
+            }
+            else
+            {
+                Console.WriteLine("File '{0}' does not exist!", filePath);
+                return;
+            }
+
+        }
+
+        private void AddDate(XmlDocument gpxDocument, DateTime date)
+        {
             XmlNamespaceManager nsmanager = new XmlNamespaceManager(gpxDocument.NameTable);
             nsmanager.AddNamespace("x", DefaultNamespace);
 
@@ -50,8 +87,8 @@ namespace GpxFix
         {
             FileInfo fileInfo = new FileInfo(inputFileName);
             string newPath = Path.Combine(fileInfo.Directory.FullName,
-                                                    Path.GetFileNameWithoutExtension(fileInfo.Name) + ".updated");
-            newPath = Path.ChangeExtension(newPath, fileInfo.Extension);
+                                                    Path.GetFileNameWithoutExtension(fileInfo.Name) + NewFileSuffix)
+                             + fileInfo.Extension;
 
             return newPath;
         }
